@@ -94,17 +94,24 @@ io.on("connection", (socket) => {
     cb({ ok: true });
   });
 
-  socket.on("call-number", ({ roomId, number }, cb) => {
+  socket.on("call-number", ({ roomId }, cb) => {
     const game = games.get(roomId);
     if (!game) return cb({ ok: false, error: "Room not found" });
     if (socket.id !== game.hostId)
       return cb({ ok: false, error: "Only host can call numbers" });
-    if (game.calledNumbers.includes(number))
-      return cb({ ok: false, error: "Number already called" });
 
+    // Generate a random number not yet called
+    const availableNumbers = Array.from({ length: 75 }, (_, i) => i + 1).filter(
+      (num) => !game.calledNumbers.includes(num)
+    );
+    if (availableNumbers.length === 0)
+      return cb({ ok: false, error: "All numbers called" });
+
+    const number =
+      availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
     game.calledNumbers.push(number);
     io.to(roomId).emit("number-called", number);
-    cb({ ok: true });
+    cb({ ok: true, number });
   });
 
   socket.on("mark-cell", ({ roomId, row, col }, cb) => {
@@ -116,9 +123,9 @@ io.on("connection", (socket) => {
 
     const cell = player.board[row][col];
     if (!cell) return cb({ ok: false, error: "Invalid cell" });
-    if (!game.calledNumbers.includes(cell.number) && cell.markedBy !== "free") {
-      return cb({ ok: false, error: "Number not called" });
-    }
+    // if (!game.calledNumbers.includes(cell.number) && cell.markedBy !== "free") {
+    //   return cb({ ok: false, error: "Number not called" });
+    // }
 
     cell.markedBy = cell.markedBy ? null : socket.id;
     io.to(roomId).emit("player-marked", { playerId: socket.id, row, col });
